@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import icon %}
+{% block title %}{{ 'Créer un compte' if register else 'Connexion' }}{% endblock %}
+{% block head %}
+<style>
+  .auth { display: flex; flex-wrap: wrap; min-height: 100vh; }
+  .auth-hero { flex: 1 1 480px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; padding: 40px 56px;
+               background: var(--bar); border-right: 1px solid var(--line); }
+  .auth-hero h1 { max-width: 540px; font-size: 40px; line-height: 1.12; font-weight: 600; letter-spacing: -.02em; }
+  .auth-hero .lead { margin-top: 14px; max-width: 480px; font-size: 16px; color: var(--muted); }
+  .swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 520px; }
+  .swatches div { aspect-ratio: 4 / 3; border-radius: 8px; }
+  .features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; color: var(--text-2); }
+  .features li { display: flex; align-items: center; gap: 12px; }
+  .features .badge-icon { width: 32px; height: 32px; border-radius: 8px; }
+  .auth-form { flex: 1 1 420px; display: flex; align-items: center; justify-content: center; padding: 48px 24px; }
+  .auth-form form { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; }
+  .auth-form h2 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+  .auth-form input[type=text], .auth-form input[type=password] { min-height: 46px; padding: 0 14px; background: var(--card); }
+  @media (max-width: 900px) { .auth-form { order: -1; } .auth-hero { padding: 32px 20px; border-right: 0; } .auth-hero h1 { font-size: 30px; } }
+</style>
+{% endblock %}
+{% block body %}
+<div class="auth">
+  <section class="auth-hero">
+    <div class="brand">{{ icon('logo', 24) }}Galerie CBIR</div>
+    <div class="stack" style="gap: 28px">
+      <div class="swatches" aria-hidden="true">
+        <div style="background: linear-gradient(to bottom, #E8894A 0 62%, #5A2E3A 62% 100%)"></div>
+        <div style="background: linear-gradient(to bottom, #D86A9A 0 58%, #3E6B3A 58% 100%)"></div>
+        <div style="background: linear-gradient(to bottom, #8FA9C4 0 55%, #4B5A4A 55% 100%)"></div>
+        <div style="background: linear-gradient(to bottom, #3A2A55 0 70%, #16111F 70% 100%)"></div>
+        <div style="background: linear-gradient(to bottom, #9AA3AD 0 64%, #5E646C 64% 100%)"></div>
+        <div style="background: linear-gradient(to bottom, #E2C04F 0 60%, #4D6B3B 60% 100%)"></div>
+      </div>
+      <div>
+        <h1>Organisez vos images.<br>Retrouvez celles qui se ressemblent.</h1>
+        <p class="lead">Galerie personnelle avec catégories, transformations et recherche par le contenu visuel sur la base GHIM-10K.</p>
+      </div>
+      <ul class="features">
+        <li><span class="badge-icon" aria-hidden="true">{{ icon('folder') }}</span>Catégories hiérarchiques, import et export par lots</li>
+        <li><span class="badge-icon" aria-hidden="true">{{ icon('chart') }}</span>Descripteurs de couleur et de texture</li>
+        <li><span class="badge-icon" aria-hidden="true">{{ icon('search') }}</span>Recherche par similarité avec retour de pertinence</li>
+      </ul>
+    </div>
+    <p class="faint small">Services d'analyse : API REST Flask-RESTful</p>
+  </section>
+
+  <section class="auth-form">
+    <form method="post" aria-labelledby="auth-title">
+      <div>
+        <h2 id="auth-title">{{ 'Créer un compte' if register else 'Connexion' }}</h2>
+        <p class="muted" style="margin-top: 4px">{{ 'Choisissez un identifiant et un mot de passe.' if register else 'Accédez à votre galerie personnelle.' }}</p>
+      </div>
+      <label class="field"><span class="lbl">Nom d'utilisateur</span>
+        <input type="text" name="username" required autofocus autocomplete="username"></label>
+      <label class="field"><span class="lbl">Mot de passe{% if register %} <span class="faint">(6 caractères minimum)</span>{% endif %}</span>
+        <input type="password" name="password" required {% if register %}minlength="6" autocomplete="new-password"{% else %}autocomplete="current-password"{% endif %}></label>
+      {% if not register %}<label class="check"><input type="checkbox" name="remember" value="1">Rester connecté</label>{% endif %}
+      <button class="btn primary big">{{ "Créer le compte" if register else 'Se connecter' }}</button>
+      <p class="muted" style="text-align: center">
+        {% if register %}Déjà un compte ? <a href="{{ url_for('login') }}">Se connecter</a>
+        {% else %}Pas encore de compte ? <a href="{{ url_for('register') }}">Créer un compte</a>{% endif %}
+      </p>
+    </form>
+  </section>
+</div>
+{% endblock %}

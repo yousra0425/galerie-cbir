@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import icon %}
+{% block title %}Descripteurs de {{ img.name }}{% endblock %}
+{% block head %}
+<style>
+  .hero { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch; }
+  .hero-img { flex: 0 1 320px; min-width: 0; }
+  .hero-img img { display: block; width: 100%; border-radius: 12px; }
+  .hero-info { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; }
+  .facts dt { color: var(--muted); }
+  .cols { margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 24px; align-items: start; }
+  .cols > section { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .cols h2 { font-size: 20px; font-weight: 600; }
+  .hists { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .hists figcaption { margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+  .bars { height: 120px; display: flex; align-items: flex-end; gap: 1px; border-bottom: 1px solid var(--line-dash); }
+  .bars div { flex: 1 1 0; min-height: 1px; border-radius: 2px 2px 0 0; }
+  .axis { margin-top: 4px; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; }
+  .dombar { margin-top: 16px; display: flex; height: 40px; overflow: hidden; border-radius: 8px; }
+  .domlist { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .domlist li { display: grid; grid-template-columns: 28px 84px 1fr 52px; align-items: center; gap: 12px; }
+  .swatch { width: 28px; height: 28px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
+  .meter { height: 6px; border-radius: 3px; background: var(--raised); }
+  .meter span { display: block; height: 100%; border-radius: 3px; background: var(--muted); }
+  .glcm { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+  .heat { width: 208px; display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 1px; }
+  .heat div { aspect-ratio: 1; border-radius: 1px; }
+  .lbp { margin-top: 20px; height: 170px; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; align-items: end; border-bottom: 1px solid var(--line-dash); }
+  .lbp > div { height: 100%; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+  .lbp span { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .lbp i { display: block; border-radius: 3px 3px 0 0; background: var(--accent); }
+  .lbp-axis { margin-top: 6px; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+</style>
+{% endblock %}
+{% block body %}
+<main class="page">
+  <nav class="crumbs" aria-label="Fil d'Ariane">
+    <a href="{{ url_for('gallery') }}">Toutes les images</a><span aria-hidden="true">/</span>
+    {% for c in path %}<a href="{{ url_for('gallery', cat=c.id) }}">{{ c.name }}</a><span aria-hidden="true">/</span>{% endfor %}
+    <span aria-current="page">{{ img.name }}</span>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-img"><img src="{{ url_for('image_file', image_id=img.id) }}" alt="{{ img.name }}"></div>
+    <div class="hero-info">
+      <div class="row" style="gap: 8px 12px">
+        <h1 class="mono" style="font-size: 26px; font-weight: 500; overflow-wrap: anywhere">{{ img.name }}</h1>
+        <span class="pill">{{ icon('check', 14, 2) }}{{ d | length }} descripteurs calculés</span>
+      </div>
+      <dl class="facts">
+        <dt>Catégorie</dt><dd>{{ path | map(attribute='name') | join(' / ') or 'Non classée' }}</dd>
+        <dt>Fichier</dt><dd>{{ img.width }} × {{ img.height }} px · {{ fmt }} · {{ size | ko }}</dd>
+        <dt>Service</dt><dd><code class="mono" style="font-size: 13px; color: var(--text-2)">POST /api/descriptors</code> · API Flask-RESTful</dd>
+      </dl>
+      <div class="actions" style="margin-top: auto">
+        <a class="btn primary" href="{{ url_for('search', image_id=img.id) }}">{{ icon('search', 18, 2) }}Rechercher des images similaires</a>
+        <a class="btn" href="{{ url_for('transform', image_id=img.id) }}">{{ icon('crop') }}Transformer…</a>
+        <a class="btn" href="{{ url_for('image_file', image_id=img.id, download=1) }}">{{ icon('download') }}Télécharger</a>
+        <a class="btn" href="{{ url_for('export_descriptors', image_id=img.id) }}">{{ icon('download') }}Exporter (JSON)</a>
+        <form method="post" action="{{ url_for('recompute', image_id=img.id) }}"><button class="btn">{{ icon('reset') }}Recalculer</button></form>
+        <form method="post" action="{{ url_for('bulk') }}" onsubmit="return confirm('Supprimer définitivement cette image ?')">
+          <input type="hidden" name="ids" value="{{ img.id }}"><input type="hidden" name="back" value="{{ url_for('gallery', cat=img.category_id) }}">
+          <button class="btn danger" name="action" value="delete">{{ icon('trash') }}Supprimer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <section aria-labelledby="h-couleur">
+      <div class="spread"><h2 id="h-couleur">Couleur</h2><span class="muted" style="font-size: 13px">Histogrammes · moments · dominantes</span></div>
+
+      <article class="card">
+        <h3>Histogrammes de couleur</h3>
+        <p class="sub">32 classes par canal, normalisés (somme = 1)</p>
+        {% set h = d.color_histogram %}
+        {% set top = [h['r'] | max, h['g'] | max, h['b'] | max] | max %}
+        <div class="hists">
+          {% for key, label, color in [('r', 'Rouge (R)', 'var(--red)'), ('g', 'Vert (V)', 'var(--green)'), ('b', 'Bleu (B)', 'var(--accent)')] %}
+          <figure style="min-width: 0">
+            <figcaption>{{ label }}</figcaption>
+            <div class="bars" aria-hidden="true">{% for v in h[key] %}<div style="height: {{ (v / top * 100) | round(1) }}%; background: {{ color }}"></div>{% endfor %}</div>
+            <div class="axis" aria-hidden="true"><span>0</span><span>128</span><span>255</span></div>
+          </figure>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Moments de couleur</h3>
+        <p class="sub">Moyenne, écart-type et asymétrie par canal</p>
+        <table class="data" style="margin-top: 12px">
+          <thead><tr><th scope="col">Canal</th><th scope="col">Moyenne μ</th><th scope="col">Écart-type σ</th><th scope="col">Asymétrie s</th></tr></thead>
+          <tbody>
+            {% for key, label, color in [('r', 'Rouge', 'var(--red)'), ('g', 'Vert', 'var(--green)'), ('b', 'Bleu', 'var(--accent)')] %}{% set m = d.color_moments[key] %}
+            <tr><th scope="row"><span class="dot" style="background: {{ color }}" aria-hidden="true"></span>{{ label }}</th>
+              <td>{{ m.mean | num(1) }}</td><td>{{ m.std | num(1) }}</td><td>{{ m.skewness | num(2) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card">
+        <h3>Couleurs dominantes</h3>
+        <p class="sub">Median-cut affiné par k-means, k = 5, espace RGB · part des pixels</p>
+        <div class="dombar" aria-hidden="true">{% for c in d.dominant_colors %}<div style="flex: {{ c.ratio }} 1 0; background: {{ c.hex }}"></div>{% endfor %}</div>
+        <ul class="domlist">
+          {% for c in d.dominant_colors %}
+          <li><span class="swatch" style="background: {{ c.hex }}" aria-hidden="true"></span><span class="mono" style="font-size: 13px">{{ c.hex | upper }}</span>
+            <span class="meter" aria-hidden="true"><span style="width: {{ (c.ratio * 100) | round(1) }}%"></span></span>
+            <span class="mono" style="font-size: 13px; text-align: right">{{ (c.ratio * 100) | round | int }} %</span></li>
+          {% endfor %}
+        </ul>
+      </article>
+    </section>
+
+    <section aria-labelledby="h-texture">
+      <div class="spread"><h2 id="h-texture">Texture</h2><span class="muted" style="font-size: 13px">GLCM · LBP</span></div>
+
+      <article class="card">
+        <h3>Matrice de co-occurrence des niveaux de gris (GLCM)</h3>
+        <p class="sub">Quantification sur 16 niveaux · distance d = 1 · matrice symétrique normalisée</p>
+        {% set m = d.glcm.matrix %}
+        {% if m %}{% set mx = m | map('max') | max %}
+        <div class="glcm">
+          <figure style="flex: 0 0 auto">
+            <div class="heat" aria-hidden="true">{% for row in m %}{% for v in row %}<div style="background: rgba(110, 168, 254, {{ '%.2f' | format(0.05 + 0.95 * (v / mx) ** 0.5) }})"></div>{% endfor %}{% endfor %}</div>
+            <figcaption class="muted small" style="margin-top: 8px">P(i, j) pour θ = 0°</figcaption>
+          </figure>
+          <div class="stack muted" style="flex: 1 1 200px; gap: 10px; font-size: 13px">
+            <p>Lignes : niveau i du pixel · colonnes : niveau j du voisin à droite.</p>
+            <p>Une diagonale marquée signifie que les pixels voisins ont des niveaux proches (faible contraste local).</p>
+            <div aria-hidden="true">
+              <div style="height: 8px; border-radius: 4px; background: linear-gradient(to right, rgba(110, 168, 254, .06), #6EA8FE)"></div>
+              <div class="spread small" style="margin-top: 4px"><span>faible</span><span>forte</span></div>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <p class="muted" style="margin-top: 12px">Matrice non stockée pour cette image : cliquez sur « Recalculer ».</p>
+        {% endif %}
+        {% set labels = {'contrast': 'Contraste', 'dissimilarity': 'Dissimilarité', 'homogeneity': 'Homogénéité', 'energy': 'Énergie',
+                         'asm': 'ASM', 'correlation': 'Corrélation', 'entropy': 'Entropie'} %}
+        <div style="margin-top: 16px; overflow-x: auto">
+          <table class="data" style="min-width: 480px; font-size: 13px">
+            <thead><tr><th scope="col">Caractéristique</th>{% for a in d.glcm.angles %}<th scope="col">{{ a }}</th>{% endfor %}<th scope="col" class="avg" style="font-weight: 600">Moyenne</th></tr></thead>
+            <tbody>
+              {% for p, v in d.glcm['mean'].items() %}
+              <tr><th scope="row">{{ labels[p] }}</th>{% for t in d.glcm.angles.values() %}<td>{{ t[p] | num(4) }}</td>{% endfor %}<td class="avg">{{ v | num(4) }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Motifs binaires locaux (LBP)</h3>
+        <p class="sub">P = 8 voisins, rayon R = 1, motifs uniformes invariants en rotation · 10 classes</p>
+        {% set top = lbp10 | max %}
+        <div class="lbp" aria-hidden="true">
+          {% for v in lbp10 %}<div><span>{{ v | num(2) }}</span><i style="height: {{ (v / top * 85) | round(1) }}%"></i></div>{% endfor %}
+        </div>
+        <div class="lbp-axis" aria-hidden="true">{% for v in lbp10 %}<span>{{ loop.index0 }}</span>{% endfor %}</div>
+        <p class="faint small" style="margin-top: 12px">Classes 0 à 8 : motifs uniformes (nombre de bits à 1) · classe 9 : motifs non uniformes. Regroupement de l'histogramme uniforme à 59 classes utilisé pour la recherche.</p>
+      </article>
+    </section>
+  </div>
+</main>
+{% endblock %}

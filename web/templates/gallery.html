@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import icon %}
+{% block title %}{{ title }}{% endblock %}
+{% block head %}
+<style>
+  .side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 0 6px 10px; }
+  .dropzone { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 20px;
+              border: 1.5px dashed var(--line-dash); border-radius: 12px; background: var(--bar); }
+  .dropzone.over { border-color: var(--accent); background: var(--accent-softer); }
+  .toolbar { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .selbar { display: none; margin-top: 12px; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 8px 8px 16px;
+            border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-softer); }
+  #bulk:has(.pick:checked) .selbar { display: flex; }
+  .pager { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+  .pager nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .pager a, .pager .gap, .pager .off { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px;
+                                       padding: 0 6px; border-radius: 8px; color: var(--muted); text-decoration: none; font-family: var(--mono); }
+  .pager a:hover { background: var(--raised); color: var(--text); }
+  .pager a[aria-current=page] { background: var(--raised); color: var(--text); }
+  .pager .arrow { border: 1px solid var(--line-2); color: var(--text-2); }
+  .pager .off { border: 1px solid var(--line); color: #5C6168; }
+  .empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--muted); }
+</style>
+{% endblock %}
+{% block body %}
+<div class="split">
+  <aside class="sidebar">
+    <div class="side-head">
+      <h2 class="eyebrow">Catégories</h2>
+      <button type="button" class="icon-btn" aria-label="Nouvelle catégorie" onclick="newCategory('')">{{ icon('folder-plus') }}</button>
+    </div>
+    <nav aria-label="Catégories">
+      <ul class="tree">
+        <li><a href="{{ url_for('gallery', sort=sort_q) }}" {{ 'aria-current=page' if cat is none }}>{{ icon('logo') }}<span class="name">Toutes les images</span><span class="count">{{ counts[0] }}</span></a></li>
+        <li><a href="{{ url_for('gallery', cat=0, sort=sort_q) }}" {{ 'aria-current=page' if cat == 0 }}>{{ icon('folder') }}<span class="name">Non classées</span><span class="count">{{ counts[1] or 0 }}</span></a></li>
+        {% for c, depth, n in tree %}
+        <li><a href="{{ url_for('gallery', cat=c.id, sort=sort_q) }}" style="padding-left: {{ 10 + depth * 24 }}px" {{ 'aria-current=page' if cat == c.id }}>{{ icon('folder') }}<span class="name">{{ c.name }}</span><span class="count">{{ n }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="crumbs" aria-label="Fil d'Ariane">
+      {% if cat is none %}<span aria-current="page">Toutes les images</span>
+      {% else %}
+      <a href="{{ url_for('gallery') }}">Toutes les images</a><span aria-hidden="true">/</span>
+      {% for c in path[:-1] %}<a href="{{ url_for('gallery', cat=c.id) }}">{{ c.name }}</a><span aria-hidden="true">/</span>{% endfor %}
+      <span aria-current="page">{{ title }}</span>
+      {% endif %}
+    </nav>
+
+    <div class="page-head">
+      <div>
+        <h1>{{ title }}</h1>
+        <p>{{ total }} image{{ 's' if total > 1 }}{% if path | length > 1 %} · sous-catégorie de {{ path[-2].name }}{% endif %}</p>
+      </div>
+      <div class="actions">
+        {% if path %}
+        <form method="post" action="{{ url_for('delete_category', cid=cat) }}"
+              onsubmit="return confirm('Supprimer cette catégorie et ses sous-catégories ? Leurs images deviendront « non classées ».')">
+          <button class="btn danger">{{ icon('trash') }}Supprimer la catégorie</button>
+        </form>
+        <button type="button" class="btn" onclick="newCategory('{{ cat }}')">{{ icon('folder-plus') }}Sous-catégorie</button>
+        {% endif %}
+        <button type="button" class="btn primary" onclick="document.getElementById('files').click()">{{ icon('upload', 18, 2) }}Charger des images</button>
+      </div>
+    </div>
+
+    <form id="upload" class="dropzone" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+      <span class="badge-icon" aria-hidden="true">{{ icon('upload', 20) }}</span>
+      <div style="flex: 1 1 260px">
+        <p style="font-weight: 500">Glissez-déposez une ou plusieurs images ici</p>
+        <p class="faint" style="font-size: 13px">JPG, PNG, BMP, GIF, WebP ou TIFF · ajoutées à « {{ title if path else 'Non classées' }} »</p>
+      </div>
+      <input type="hidden" name="category_id" value="{{ cat or '' }}">
+      <input type="file" id="files" name="images" multiple accept="image/*" hidden>
+      <button type="button" class="btn" onclick="document.getElementById('files').click()">Parcourir…</button>
+    </form>
+
+    <form id="sortform" method="get">{% if cat is not none %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}</form>
+
+    <form id="bulk" method="post" action="{{ url_for('bulk') }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <div class="toolbar">
+        <label class="check"><input type="checkbox" id="all">Tout sélectionner sur cette page</label>
+        <div class="row" style="gap: 10px">
+          <label for="sort" class="muted">Trier par</label>
+          <select id="sort" name="sort" form="sortform" onchange="this.form.submit()">
+            {% for key, (label, _) in sorts.items() %}<option value="{{ key }}" {{ 'selected' if key == sort }}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="selbar" role="region" aria-label="Actions sur la sélection">
+        <span id="selcount" style="font-weight: 600; color: var(--accent-text)"></span>
+        <button type="button" class="btn ghost" id="clearsel" style="text-decoration: underline">Désélectionner</button>
+        <span style="flex: 1 1 auto"></span>
+        <button class="btn" name="action" value="download">{{ icon('download') }}Télécharger (.zip)</button>
+        <select name="category_id" aria-label="Déplacer la sélection vers une catégorie"
+                onchange="this.form.requestSubmit(document.getElementById('movebtn'))">
+          <option value="" disabled selected>Déplacer vers…</option>
+          <option value="">Non classées</option>
+          {% for c, depth, n in tree %}<option value="{{ c.id }}">{{ '— ' * depth }}{{ c.name }}</option>{% endfor %}
+        </select>
+        <button hidden name="action" value="move" id="movebtn"></button>
+        <button class="btn danger" name="action" value="delete" onclick="return confirm('Supprimer définitivement les images sélectionnées ?')">{{ icon('trash') }}Supprimer</button>
+      </div>
+
+      <ul class="tiles">
+        {% for im in images %}
+        <li class="tile">
+          <a class="thumb" href="{{ url_for('image', image_id=im.id) }}"><img src="{{ url_for('image_file', image_id=im.id) }}" alt="{{ im.name }}" loading="lazy"></a>
+          <label class="pickwrap"><input type="checkbox" class="pick" name="ids" value="{{ im.id }}" aria-label="Sélectionner {{ im.name }}"></label>
+          <div class="info">
+            <div>
+              <p class="fname" title="{{ im.name }}">{{ im.name }}</p>
+              <p class="meta">{{ im.width }} × {{ im.height }} · {{ im.size | ko }}</p>
+            </div>
+            <details class="menu">
+              <summary class="icon-btn" aria-label="Actions pour {{ im.name }}">{{ icon('dots') }}</summary>
+              <div class="menu-pop">
+                <a class="menu-item" href="{{ url_for('image', image_id=im.id) }}">{{ icon('chart') }}Voir les descripteurs</a>
+                <a class="menu-item" href="{{ url_for('transform', image_id=im.id) }}">{{ icon('crop') }}Transformer…</a>
+                <a class="menu-item" href="{{ url_for('search', image_id=im.id) }}">{{ icon('search') }}Images similaires</a>
+                <a class="menu-item" href="{{ url_for('image_file', image_id=im.id, download=1) }}">{{ icon('download') }}Télécharger</a>
+                <div class="menu-sep"></div>
+                <button class="menu-item danger" form="del-{{ im.id }}">{{ icon('trash') }}Supprimer</button>
+              </div>
+            </details>
+          </div>
+        </li>
+        {% else %}
+        <li class="empty">Aucune image ici. Glissez-en dans la zone ci-dessus ou cliquez sur « Charger des images ».</li>
+        {% endfor %}
+      </ul>
+    </form>
+
+    {% for im in images %}
+    <form id="del-{{ im.id }}" method="post" action="{{ url_for('bulk') }}" hidden onsubmit="return confirm('Supprimer définitivement cette image ?')">
+      <input type="hidden" name="ids" value="{{ im.id }}"><input type="hidden" name="action" value="delete">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+    </form>
+    {% endfor %}
+
+    {% if total %}
+    <div class="pager">
+      <span>Images {{ first }}–{{ last }} sur {{ total }}</span>
+      {% if pages > 1 %}
+      <nav aria-label="Pagination">
+        {% if page > 1 %}<a class="arrow" href="{{ url_for('gallery', cat=cat, sort=sort_q, page=page - 1) }}" aria-label="Page précédente">{{ icon('chev-left', 16, 2) }}</a>
+        {% else %}<span class="off" aria-hidden="true">{{ icon('chev-left', 16, 2) }}</span>{% endif %}
+        {% for n in page_nums %}
+        {% if not loop.first and n - loop.previtem > 1 %}<span class="gap" aria-hidden="true">…</span>{% endif %}
+        <a href="{{ url_for('gallery', cat=cat, sort=sort_q, page=n) }}" {{ 'aria-current=page' if n == page }}>{{ n }}</a>
+        {% endfor %}
+        {% if page < pages %}<a class="arrow" href="{{ url_for('gallery', cat=cat, sort=sort_q, page=page + 1) }}" aria-label="Page suivante">{{ icon('chev-right', 16, 2) }}</a>
+        {% else %}<span class="off" aria-hidden="true">{{ icon('chev-right', 16, 2) }}</span>{% endif %}
+      </nav>
+      {% endif %}
+    </div>
+    {% endif %}
+  </main>
+</div>
+
+<dialog id="newcat" aria-labelledby="newcat-title">
+  <form method="post" action="{{ url_for('create_category') }}" class="stack" style="gap: 16px">
+    <h2 id="newcat-title" style="font-size: 18px">Nouvelle catégorie</h2>
+    <label class="field"><span class="lbl">Nom</span><input type="text" name="name" required></label>
+    <label class="field"><span class="lbl">Catégorie parente</span>
+      <select name="parent_id" id="newcat-parent">
+        <option value="">Aucune (racine)</option>
+        {% for c, depth, n in tree %}<option value="{{ c.id }}">{{ '— ' * depth }}{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <div class="actions" style="justify-content: flex-end">
+      <button type="button" class="btn" onclick="this.closest('dialog').close()">Annuler</button>
+      <button class="btn primary">Créer</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  function newCategory(parent) {
+    document.getElementById('newcat-parent').value = parent;
+    document.getElementById('newcat').showModal();
+  }
+  (() => {
+    // Sélection : compteur, « tout sélectionner », « désélectionner ».
+    const picks = [...document.querySelectorAll('#bulk .pick')], all = document.getElementById('all');
+    const sync = () => {
+      const n = picks.filter(p => p.checked).length;
+      document.getElementById('selcount').textContent = n + (n > 1 ? ' images sélectionnées' : ' image sélectionnée');
+      all.checked = n > 0 && n === picks.length;
+    };
+    picks.forEach(p => p.addEventListener('change', sync));
+    all.addEventListener('change', () => { picks.forEach(p => p.checked = all.checked); sync(); });
+    document.getElementById('clearsel').addEventListener('click', () => { picks.forEach(p => p.checked = false); sync(); });
+
+    // Chargement : bouton « Parcourir » ou glisser-déposer n'importe où sur la page.
+    const upload = document.getElementById('upload'), files = document.getElementById('files');
+    files.addEventListener('change', () => files.files.length && upload.submit());
+    document.addEventListener('dragover', e => { e.preventDefault(); upload.classList.add('over'); });
+    document.addEventListener('dragleave', e => { if (!e.relatedTarget) upload.classList.remove('over'); });
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+      upload.classList.remove('over');
+      if (e.dataTransfer.files.length) { files.files = e.dataTransfer.files; upload.submit(); }
+    });
+  })();
+</script>
+{% endblock %}

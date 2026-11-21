@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import icon %}
+{% block title %}Images similaires à {{ query.name }}{% endblock %}
+{% block head %}
+<style>
+  .search-side { flex: 1 1 340px; display: flex; flex-direction: column; gap: 22px; padding: 24px 20px 40px; }
+  .search-side fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+  .search-side legend { padding: 0; margin-bottom: 10px; }
+  .query-card { margin-top: 10px; display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  .query-card img { flex: 0 0 120px; width: 120px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; }
+  .query-card > div { min-width: 0; }
+  .seg.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; padding: 4px; }
+  .seg.two label { min-height: 44px; padding: 0 8px; font-size: 13px; text-align: center; }
+  .qvm { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-panel); }
+  .formula { padding: 10px 12px; border-radius: 8px; background: var(--well); font-size: 13px; overflow-wrap: anywhere; }
+  input[type=range].neg { accent-color: var(--neg); }
+  #sf:has(#mode-simple:checked) .rf-only, #sf:has(#mode-rf:checked) .simple-only { display: none; }
+  .iters { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .iters li { display: inline-flex; align-items: center; gap: 6px; color: #5C6168; }
+  .fb-bar { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bar); }
+  .fb-bar p { flex: 1 1 280px; color: var(--text-2); }
+  .banner { margin-top: 12px; display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-softer); color: #DCE8FF; }
+  .banner svg { margin-top: 2px; color: var(--link); }
+  .rank, .tag { position: absolute; top: 8px; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12px; }
+  .rank { left: 8px; background: rgba(16, 17, 19, .85); color: var(--text); font-family: var(--mono); }
+  .tag { right: 8px; display: none; font-weight: 600; }
+  .tag-r { background: var(--accent); color: var(--on-accent); }
+  .tag-n { background: var(--neg); color: #1A0F07; }
+  #sf:has(#mode-rf:checked) .result:has([name=rel]:checked) { box-shadow: 0 0 0 2px var(--accent); }
+  #sf:has(#mode-rf:checked) .result:has([name=non]:checked) { box-shadow: none; outline: 2px dashed var(--neg); outline-offset: -1px; }
+  #sf:has(#mode-rf:checked) .result:has([name=rel]:checked) .tag-r,
+  #sf:has(#mode-rf:checked) .result:has([name=non]:checked) .tag-n { display: inline-flex; }
+  .rinfo { padding: 10px 12px 12px; }
+  .marks { margin-top: 10px; }
+  .marks .grid2 { gap: 6px; margin-top: 6px; }
+  .marks label { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 8px;
+                 border: 1px solid var(--line-2); border-radius: 8px; color: var(--text-2); font-size: 13px; font-weight: 500; cursor: pointer; }
+  .marks .mark-n { border-style: dashed; }
+  .marks input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+  .marks label:has(:focus-visible) { outline: 2px solid var(--link); outline-offset: 2px; }
+  .marks .mark-r:has(:checked) { border-color: var(--accent); background: var(--accent-pressed); color: var(--accent-text); }
+  .marks .mark-n:has(:checked) { border-color: var(--neg); background: var(--neg-soft); color: var(--neg-text); }
+</style>
+{% endblock %}
+{% block body %}
+<form method="post" id="sf" class="split">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="iteration" value="{{ iteration }}">
+
+  <aside class="sidebar search-side">
+    <section aria-labelledby="h-req">
+      <h2 id="h-req" class="eyebrow">Image requête</h2>
+      <div class="query-card">
+        <img src="{{ url_for('image_file', image_id=query.id) }}" alt="{{ query.name }}">
+        <div>
+          <p class="mono" style="overflow-wrap: anywhere">{{ query.name }}</p>
+          <p class="faint small">{{ qpath or 'Non classée' }}</p>
+          <a href="{{ url_for('search_pick') }}" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 13px">Changer d'image</a>
+        </div>
+      </div>
+    </section>
+
+    <fieldset>
+      <legend class="eyebrow">Mode de recherche</legend>
+      <div class="seg two">
+        <label><input type="radio" name="mode" value="simple" id="mode-simple" {{ 'checked' if mode == 'simple' }}>Simple</label>
+        <label><input type="radio" name="mode" value="rf" id="mode-rf" {{ 'checked' if mode == 'rf' }}>Retour de pertinence</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend class="eyebrow">Descripteurs comparés</legend>
+      <div class="stack" style="gap: 0">
+        {% for key, (label, kind) in DESCS.items() %}
+        <label class="check"><input type="checkbox" name="desc" value="{{ key }}" {{ 'checked' if key in descs }}><span style="flex: 1 1 auto">{{ label }}</span><span class="faint small">{{ kind }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="grid2">
+      <label class="field"><span class="lbl">Distance</span>
+        <select name="dist">{% for key, label in DISTANCES.items() %}<option value="{{ key }}" {{ 'selected' if key == dist }}>{{ label[:1] | upper }}{{ label[1:] }}</option>{% endfor %}</select></label>
+      <label class="field"><span class="lbl">Résultats</span>
+        <select name="k">{% for n in (12, 24, 48) %}<option {{ 'selected' if n == k }}>{{ n }}</option>{% endfor %}</select></label>
+    </div>
+
+    <section class="qvm rf-only" aria-labelledby="h-qvm">
+      <div>
+        <h2 id="h-qvm" style="font-size: 14px">Query Vector Modification</h2>
+        <p class="muted" style="margin-top: 4px; font-size: 13px">Le vecteur requête se rapproche de la moyenne des images pertinentes R et s'éloigne de celle des non pertinentes N (formule de Rocchio).</p>
+      </div>
+      <p class="formula mono" id="formula"></p>
+      {% for n, label, v in [('alpha', 'α · requête courante', alpha), ('beta', 'β · images pertinentes', beta), ('gamma', 'γ · images non pertinentes', gamma)] %}
+      <label class="field sm"><span class="lbl spread"><span style="color: var(--text-2); font-size: 13px">{{ label }}</span><output class="mono {{ 'neg' if n == 'gamma' else 'accent' }}"></output></span>
+        <input type="range" name="{{ n }}" min="0" max="2" step="0.05" value="{{ v }}" {{ 'class=neg' if n == 'gamma' }}></label>
+      {% endfor %}
+    </section>
+
+    <div class="stack">
+      <button class="btn primary big simple-only" name="action" value="run">{{ icon('search', 18, 2) }}Lancer la recherche</button>
+      <button class="btn primary big rf-only" name="action" value="feedback" id="apply">{{ icon('search', 18, 2) }}Appliquer le retour · itération {{ iteration + 1 }}</button>
+      <p class="muted small rf-only" id="apply-hint">Marquez au moins un résultat pour appliquer le retour.</p>
+      <button class="btn rf-only" name="action" value="run">{{ 'Revenir à la requête initiale' if iteration else 'Relancer la recherche' }}</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="page-head" style="margin-top: 0">
+      <div>
+        <h1>Images similaires</h1>
+        <p>{{ results | length }} résultats · distance {{ DISTANCES[dist] }} · {{ descs | length }} descripteur{{ 's' if descs | length > 1 }}
+          {%- if hits is not none and results %} · précision {{ hits }} / {{ results | length }} ({{ (100 * hits / results | length) | round | int }} %) dans la même catégorie{% endif %}</p>
+      </div>
+      <ol class="iters rf-only" aria-label="Itérations">
+        {% for i in range(iteration + 1) %}
+        <li>{% if i %}{{ icon('chev-right', 14, 2) }}{% endif %}<span class="chip {{ 'on' if i == iteration }}" {{ 'aria-current=step' if i == iteration }}>Itération {{ i }}</span></li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <div class="fb-bar rf-only">
+      <p>Indiquez si chaque résultat correspond à ce que vous cherchez, puis appliquez le retour.</p>
+      <span class="chip on">{{ icon('check', 14, 2.2) }}<span id="count-r"></span></span>
+      <span class="chip neg">{{ icon('x', 14, 2.2) }}<span id="count-n"></span></span>
+    </div>
+
+    {% if last %}
+    <div class="banner rf-only" role="status">{{ icon('reset') }}
+      <p>Itération {{ iteration }} : requête recalculée à partir de {{ last.r }} image{{ 's' if last.r > 1 }} pertinente{{ 's' if last.r > 1 }}
+        et {{ last.n }} non pertinente{{ 's' if last.n > 1 }} (α = {{ alpha | num }}, β = {{ beta | num }}, γ = {{ gamma | num }}).
+        Les images proches des exemples pertinents remontent dans le classement.</p>
+    </div>
+    {% endif %}
+
+    <ol class="tiles" style="margin-top: 20px" aria-label="Résultats classés par distance croissante">
+      {% for r, dist_v in results %}
+      <li class="tile result">
+        <div class="thumb">
+          <img src="{{ url_for('image_file', image_id=r.id) }}" alt="{{ r.name }}" loading="lazy">
+          <span class="rank">#{{ loop.index }}</span>
+          <span class="tag tag-r">{{ icon('check', 12, 3) }}Pertinente</span>
+          <span class="tag tag-n">{{ icon('x', 12, 3) }}Non pertinente</span>
+        </div>
+        <div class="rinfo">
+          <div class="spread">
+            <span class="mono" style="font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap" title="{{ r.name }}">{{ r.name }}</span>
+            <span class="mono faint small" style="white-space: nowrap">d = {{ dist_v | num(3) }}</span>
+          </div>
+          <p class="faint small" style="margin-top: 2px">{{ cat_names.get(r.category_id, 'Non classée') }}</p>
+          <div class="marks rf-only" role="group" aria-label="Pertinence de {{ r.name }}">
+            <p class="muted small" aria-hidden="true">Pertinente ?</p>
+            <div class="grid2">
+              <label class="mark-r"><input type="checkbox" name="rel" value="{{ r.id }}">{{ icon('check', 16, 2.2) }}Oui</label>
+              <label class="mark-n"><input type="checkbox" name="non" value="{{ r.id }}">{{ icon('x', 16, 2.2) }}Non</label>
+            </div>
+          </div>
+        </div>
+      </li>
+      {% else %}
+      <li class="muted" style="grid-column: 1 / -1">Aucune autre image dans la galerie.</li>
+      {% endfor %}
+    </ol>
+  </main>
+</form>
+
+<script>
+(() => {
+  const f = document.getElementById('sf');
+  const plural = (n, one, many) => n + ' ' + (n > 1 ? many : one);
+  const fr = v => (+v).toFixed(2).replace('.', ',');
+  function sync() {
+    const r = f.querySelectorAll('[name=rel]:checked').length, n = f.querySelectorAll('[name=non]:checked').length;
+    document.getElementById('count-r').textContent = plural(r, 'pertinente', 'pertinentes');
+    document.getElementById('count-n').textContent = plural(n, 'non pertinente', 'non pertinentes');
+    document.getElementById('apply').disabled = r + n === 0;
+    document.getElementById('apply-hint').hidden = r + n > 0;
+    f.querySelectorAll('input[type=range]').forEach(i => i.closest('label').querySelector('output').textContent = fr(i.value));
+    const [a, b, g] = ['alpha', 'beta', 'gamma'].map(k => fr(f.elements[k].value));
+    document.getElementById('formula').textContent = `q′ = ${a}·q + ${b}·moy(R) − ${g}·moy(N)`;
+  }
+  f.addEventListener('change', e => {
+    // « Oui » et « Non » s'excluent pour une même image.
+    if (e.target.checked && ['rel', 'non'].includes(e.target.name)) {
+      e.target.closest('.marks').querySelector(`[name=${e.target.name === 'rel' ? 'non' : 'rel'}]`).checked = false;
+    }
+    sync();
+  });
+  f.addEventListener('input', sync);
+  sync();
+})();
+</script>
+{% endblock %}

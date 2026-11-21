@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Recherche{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="page-head" style="margin-top: 0">
+    <div>
+      <h1>Recherche par similarité</h1>
+      <p>Choisissez l'image requête parmi vos derniers ajouts, ou depuis la galerie avec le menu ⋯ › Images similaires.</p>
+    </div>
+  </div>
+  <ul class="tiles" style="margin-top: 20px">
+    {% for im in images %}
+    <li class="tile">
+      <a class="thumb" href="{{ url_for('search', image_id=im.id) }}"><img src="{{ url_for('image_file', image_id=im.id) }}" alt="{{ im.name }}" loading="lazy"></a>
+      <div class="info"><div><a class="fname" style="display: block; color: var(--text); text-decoration: none" href="{{ url_for('search', image_id=im.id) }}">{{ im.name }}</a></div></div>
+    </li>
+    {% else %}
+    <li class="muted" style="grid-column: 1 / -1">Aucune image : chargez-en d'abord depuis la <a href="{{ url_for('gallery') }}">galerie</a>.</li>
+    {% endfor %}
+  </ul>
+</main>
+{% endblock %}
